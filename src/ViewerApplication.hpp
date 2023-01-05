@@ -4,6 +4,7 @@
 #include "utils/cameras.hpp"
 #include "utils/filesystem.hpp"
 #include "utils/shaders.hpp"
+#include <tiny_gltf.h>
 
 class ViewerApplication
 {
@@ -56,5 +57,5 @@ private:
                                                    the creation of a GLFW windows and thus a GL context which must exists
                                                    before most of OpenGL function calls.
                                                  */
-  // bool loadGltfFile(tinygltf::Model &model);
+  bool loadGltfFile(tinygltf::Model &model);
 };

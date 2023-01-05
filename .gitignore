@@ -1,1 +1,5 @@
-build/*
+*.imgui.ini
+build
+dist
+gltf-sample-models
+output-images

@@ -22,20 +22,25 @@ void keyCallback(
   }
 }
 
-// bool ViewerApplication::loadGltfFile(tinygltf::Model &model)
-// {
-//   tinygltf::TinyGLTF loader;
-//   std::string warn;
-//   std::string err;
-//   bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, m_gltfFilePath.string());
+bool ViewerApplication::loadGltfFile(tinygltf::Model &model)
+{
+  tinygltf::TinyGLTF loader;
+  std::string warn;
+  std::string err;
+  bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, m_gltfFilePath.string());
 
-//   if (!warn.empty())
-//   {
-//     std::cout << "Warn : " << warn << std::endl;
-//   }
+  if (!warn.empty())
+  {
+    std::cout << "Warn : " << warn << std::endl;
+  }
 
-//   return true;
-// }
+  if(!err.empty())
+  {
+    std::cerr << "Error : " << err << std::endl;
+  }
+
+  return ret;
+}
 
 int ViewerApplication::run()
 {
@@ -75,7 +80,7 @@ int ViewerApplication::run()
 
   tinygltf::Model model;
   // TODO Loading the glTF file
-
+  loadGltfFile(model);
   // TODO Creation of Buffer Objects
 
   // TODO Creation of Vertex Array Objects
