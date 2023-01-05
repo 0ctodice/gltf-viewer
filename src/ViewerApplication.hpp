@@ -9,9 +9,9 @@ class ViewerApplication
 {
 public:
   ViewerApplication(const fs::path &appPath, uint32_t width, uint32_t height,
-      const fs::path &gltfFile, const std::vector<float> &lookatArgs,
-      const std::string &vertexShader, const std::string &fragmentShader,
-      const fs::path &output);
+                    const fs::path &gltfFile, const std::vector<float> &lookatArgs,
+                    const std::string &vertexShader, const std::string &fragmentShader,
+                    const fs::path &output);
 
   int run();
 
@@ -43,17 +43,18 @@ private:
   const std::string m_ImGuiIniFilename;
   // Last to be initialized, first to be destroyed:
   GLFWHandle m_GLFWHandle{int(m_nWindowWidth), int(m_nWindowHeight),
-      "glTF Viewer",
-      m_OutputPath.empty()}; // show the window only if m_OutputPath is empty
-  /*
-    ! THE ORDER OF DECLARATION OF MEMBER VARIABLES IS IMPORTANT !
-    - m_ImGuiIniFilename.c_str() will be used by ImGUI in ImGui::Shutdown, which
-    will be called in destructor of m_GLFWHandle. So we must declare
-    m_ImGuiIniFilename before m_GLFWHandle so that m_ImGuiIniFilename
-    destructor is called after.
-    - m_GLFWHandle must be declared before the creation of any object managing
-    OpenGL resources (e.g. GLProgram, GLShader) because it is responsible for
-    the creation of a GLFW windows and thus a GL context which must exists
-    before most of OpenGL function calls.
-  */
+                          "glTF Viewer",
+                          m_OutputPath.empty()}; // show the window only if m_OutputPath is empty
+                                                 /*
+                                                   ! THE ORDER OF DECLARATION OF MEMBER VARIABLES IS IMPORTANT !
+                                                   - m_ImGuiIniFilename.c_str() will be used by ImGUI in ImGui::Shutdown, which
+                                                   will be called in destructor of m_GLFWHandle. So we must declare
+                                                   m_ImGuiIniFilename before m_GLFWHandle so that m_ImGuiIniFilename
+                                                   destructor is called after.
+                                                   - m_GLFWHandle must be declared before the creation of any object managing
+                                                   OpenGL resources (e.g. GLProgram, GLShader) because it is responsible for
+                                                   the creation of a GLFW windows and thus a GL context which must exists
+                                                   before most of OpenGL function calls.
+                                                 */
+  // bool loadGltfFile(tinygltf::Model &model);
 };
