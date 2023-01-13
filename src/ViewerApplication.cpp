@@ -185,7 +185,7 @@ std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Mode
   for (size_t i = 0; i < model.textures.size(); i++)
   {
     auto texture = model.textures[i];
-    assert(texture.source >= 0);
+    // assert(texture.source >= 0);
     const auto &image = model.images[texture.source];
 
     glBindTexture(GL_TEXTURE_2D, textureObjects[i]);
@@ -218,8 +218,18 @@ int ViewerApplication::run()
   const auto modelViewProjMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewProjMatrix");
   const auto modelViewMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewMatrix");
   const auto normalMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
-  const auto lightingDirectionLocation = glGetUniformLocation(glslProgram.glId(), "lighting_direction");
-  const auto lightingIntensityLocation = glGetUniformLocation(glslProgram.glId(), "lighting_intensity");
+  const auto lightingDirectionLocation = glGetUniformLocation(glslProgram.glId(), "uLightDirection");
+  const auto lightingIntensityLocation = glGetUniformLocation(glslProgram.glId(), "uLightIntensity");
+  const auto uBaseColorTexture = glGetUniformLocation(glslProgram.glId(), "uBaseColorTexture");
+  const auto uBaseColorFactor = glGetUniformLocation(glslProgram.glId(), "uBaseColorFactor");
+  const auto uMetallicFactor = glGetUniformLocation(glslProgram.glId(), "uMetallicFactor");
+  const auto uRoughnessFactor = glGetUniformLocation(glslProgram.glId(), "uRoughnessFactor");
+  const auto uMetallicRoughnessTexture = glGetUniformLocation(glslProgram.glId(), "uMetallicRoughnessTexture");
+  const auto uEmissiveFactor = glGetUniformLocation(glslProgram.glId(), "uEmissiveFactor");
+  const auto uEmissiveTexture = glGetUniformLocation(glslProgram.glId(), "uEmissiveTexture");
+  const auto uOcclusionTexture = glGetUniformLocation(glslProgram.glId(), "uOcclusionTexture");
+  const auto uOcclusionStrength = glGetUniformLocation(glslProgram.glId(), "uOcclusionStrength");
+  const auto uApplyOcclusion = glGetUniformLocation(glslProgram.glId(), "uApplyOcclusion");
 
   tinygltf::Model model;
 
@@ -234,6 +244,7 @@ int ViewerApplication::run()
   glm::vec3 lightingDirection(1, 1, 1);
   glm::vec3 lightingIntensity(1, 1, 1);
   bool lightFromCamera = false;
+  bool applyOcclusion = true;
 
   auto up = glm::vec3(0, 1, 0);
   auto center = (bboxMin + bboxMax) * 0.5f;
@@ -261,6 +272,18 @@ int ViewerApplication::run()
 
   auto textureObjects = createTextureObjects(model);
 
+  GLuint whiteTexture = 0;
+  glGenTextures(1, &whiteTexture);
+  glBindTexture(GL_TEXTURE_2D, whiteTexture);
+  float white[] = {1, 1, 1, 1};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_FLOAT, white);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
   auto modelBufferObjects = createBufferObjects(model);
 
   std::vector<VaoRange> meshindexToVaoRange;
@@ -269,6 +292,168 @@ int ViewerApplication::run()
   // Setup OpenGL state for rendering
   glEnable(GL_DEPTH_TEST);
   glslProgram.use();
+
+  const auto bindMaterial = [&](const auto materialIndex) {
+    // Material binding
+    if (materialIndex >= 0)
+    {
+      const auto &material = model.materials[materialIndex];
+      const auto &pbrMetallicRoughness = material.pbrMetallicRoughness;
+
+      if (uBaseColorFactor >= 0)
+      {
+        glUniform4f(uBaseColorFactor, (float)pbrMetallicRoughness.baseColorFactor[0], (float)pbrMetallicRoughness.baseColorFactor[1],
+            (float)pbrMetallicRoughness.baseColorFactor[2], (float)pbrMetallicRoughness.baseColorFactor[3]);
+      }
+
+      if (uMetallicFactor >= 0)
+      {
+        glUniform1f(uMetallicFactor, (float)pbrMetallicRoughness.metallicFactor);
+      }
+
+      if (uRoughnessFactor >= 0)
+      {
+        glUniform1f(uRoughnessFactor, (float)pbrMetallicRoughness.roughnessFactor);
+      }
+
+      if (uEmissiveFactor >= 0)
+      {
+        glUniform3f(
+            uEmissiveFactor, (float)material.emissiveFactor[0], (float)material.emissiveFactor[1], (float)material.emissiveFactor[2]);
+      }
+
+      if (uOcclusionStrength >= 0)
+      {
+        glUniform1f(uOcclusionStrength, (float)material.occlusionTexture.strength);
+      }
+
+      if (uBaseColorTexture >= 0)
+      {
+        auto textureObject = whiteTexture;
+        if (pbrMetallicRoughness.baseColorTexture.index >= 0)
+        {
+          const auto &texture = model.textures[pbrMetallicRoughness.baseColorTexture.index];
+
+          if (texture.source >= 0)
+          {
+            textureObject = textureObjects[texture.source];
+          }
+        }
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, textureObject);
+        glUniform1i(uBaseColorTexture, 0);
+      }
+
+      if (uMetallicRoughnessTexture >= 0)
+      {
+        auto metallicRoughnessObject = 0u;
+        if (pbrMetallicRoughness.metallicRoughnessTexture.index >= 0)
+        {
+          const auto &metallicRoughness = model.textures[pbrMetallicRoughness.metallicRoughnessTexture.index];
+          if (metallicRoughness.source >= 0)
+          {
+            metallicRoughnessObject = textureObjects[metallicRoughness.source];
+          }
+          glActiveTexture(GL_TEXTURE1);
+          glBindTexture(GL_TEXTURE_2D, metallicRoughnessObject);
+          glUniform1i(uMetallicRoughnessTexture, 1);
+        }
+      }
+
+      if (uEmissiveTexture >= 0)
+      {
+        auto emissiveObject = 0u;
+        if (material.emissiveTexture.index >= 0)
+        {
+          const auto &texture = model.textures[material.emissiveTexture.index];
+          if (texture.source >= 0)
+          {
+            emissiveObject = textureObjects[texture.source];
+          }
+        }
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, emissiveObject);
+        glUniform1i(uEmissiveTexture, 2);
+      }
+
+      if (uOcclusionTexture >= 0)
+      {
+        auto occlusionObject = 0u;
+        if (material.occlusionTexture.index >= 0)
+        {
+          const auto &texture = model.textures[material.occlusionTexture.index];
+          if (texture.source >= 0)
+          {
+            occlusionObject = textureObjects[texture.source];
+          }
+        }
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, occlusionObject);
+        glUniform1i(uOcclusionTexture, 3);
+      }
+
+    } else
+    {
+      if (uBaseColorFactor >= 0)
+      {
+        glUniform4f(uBaseColorFactor, 1, 1, 1, 1);
+      }
+
+      if (uMetallicFactor >= 0)
+      {
+        glUniform1f(uMetallicFactor, 1.f);
+      }
+
+      if (uRoughnessFactor >= 0)
+      {
+        glUniform1f(uRoughnessFactor, 1.f);
+      }
+
+      if (uEmissiveFactor >= 0)
+      {
+        glUniform3f(uEmissiveFactor, 0.f, 0.f, 0.f);
+      }
+
+      if (uOcclusionStrength >= 0)
+      {
+        glUniform1f(uOcclusionStrength, 0.f);
+      }
+
+      if (uBaseColorTexture >= 0)
+      {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, whiteTexture);
+        glUniform1i(uBaseColorTexture, 0);
+      }
+
+      if (uMetallicRoughnessTexture >= 0)
+      {
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUniform1i(uMetallicRoughnessTexture, 1);
+      }
+
+      if (uEmissiveTexture >= 0)
+      {
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUniform1i(uEmissiveTexture, 2);
+      }
+
+      if (uOcclusionTexture >= 0)
+      {
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUniform1i(uOcclusionTexture, 3);
+      }
+    }
+
+    if (uApplyOcclusion >= 0)
+    {
+      glUniform1i(uApplyOcclusion, applyOcclusion);
+    }
+  };
 
   // Lambda function to draw the scene
   const auto drawScene = [&](const Camera &camera) {
@@ -312,9 +497,13 @@ int ViewerApplication::run()
         for (int primIdx = 0; primIdx < mesh.primitives.size(); primIdx++)
         {
           const auto vao = vertexArrayObjects[vaoRange.begin + primIdx];
-          glBindVertexArray(vao);
 
           const auto &primitive = mesh.primitives[primIdx];
+
+          bindMaterial(primitive.material);
+
+          glBindVertexArray(vao);
+
           if (primitive.indices >= 0)
           {
             const auto &accessor = model.accessors[primitive.indices];
@@ -424,6 +613,7 @@ int ViewerApplication::run()
           lightingIntensity = color * factor;
         }
         ImGui::Checkbox("light from camera", &lightFromCamera);
+        ImGui::Checkbox("Ambient occlusion", &applyOcclusion);
       }
 
       ImGui::End();
