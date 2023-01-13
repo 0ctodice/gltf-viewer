@@ -51,8 +51,8 @@ bool ViewerApplication::loadGltfFile(tinygltf::Model &model)
 std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model &model)
 {
   std::vector<GLuint> buffers(model.buffers.size(), 0);
-  glGenBuffers(buffers.size(), buffers.data());
-  for (size_t i = 0; i < buffers.size(); i++)
+  glGenBuffers(GLsizei(model.buffers.size()), buffers.data());
+  for (size_t i = 0; i < model.buffers.size(); i++)
   {
     glBindBuffer(GL_ARRAY_BUFFER, buffers[i]);
     glBufferStorage(GL_ARRAY_BUFFER, model.buffers[i].data.size(), model.buffers[i].data.data(), 0);
@@ -66,22 +66,31 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 {
   std::vector<GLuint> vertexArrayObjects;
 
+  meshindexToVaoRange.resize(model.meshes.size());
+
   const GLuint VERTEX_ATTRIB_POSITION_IDX = 0;
   const GLuint VERTEX_ATTRIB_NORMAL_IDX = 1;
   const GLuint VERTEX_ATTRIB_TEXCOORD0_IDX = 2;
 
-  for (auto mesh : model.meshes)
+  for (size_t i = 0; i < model.meshes.size(); i++)
   {
-    const auto vaoOffset = vertexArrayObjects.size();
-    vertexArrayObjects.resize(vaoOffset + mesh.primitives.size());
-    meshindexToVaoRange.push_back(VaoRange{GLsizei(vaoOffset), GLsizei(mesh.primitives.size())});
-    glGenVertexArrays(GLsizei(mesh.primitives.size()), &vertexArrayObjects[vaoOffset]);
+    const auto &mesh = model.meshes[i];
+
+    auto &vaoRange = meshindexToVaoRange[i];
+
+    vaoRange.begin = GLsizei(vertexArrayObjects.size());
+
+    vaoRange.count = GLsizei(mesh.primitives.size());
+
+    vertexArrayObjects.resize(vertexArrayObjects.size() + mesh.primitives.size());
+
+    glGenVertexArrays(vaoRange.count, &vertexArrayObjects[vaoRange.begin]);
 
     for (size_t idx = 0; idx < mesh.primitives.size(); idx++)
     {
-      const auto vao = vertexArrayObjects[vaoOffset + idx];
+      const auto vao = vertexArrayObjects[vaoRange.begin + idx];
       glBindVertexArray(vao);
-      const auto primitive = mesh.primitives[idx];
+      const auto &primitive = mesh.primitives[idx];
 
       {
         const auto iterator = primitive.attributes.find("POSITION");
@@ -93,11 +102,9 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
 
-          const auto bufferObject = bufferObjects[bufferIdx];
-
           glEnableVertexAttribArray(VERTEX_ATTRIB_POSITION_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
-          glBindBuffer(GL_ARRAY_BUFFER, bufferObject);
+          glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
 
           const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
 
@@ -116,11 +123,9 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
 
-          const auto bufferObject = bufferObjects[bufferIdx];
-
           glEnableVertexAttribArray(VERTEX_ATTRIB_NORMAL_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
-          glBindBuffer(GL_ARRAY_BUFFER, bufferObject);
+          glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
 
           const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
 
@@ -139,11 +144,9 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
 
-          const auto bufferObject = bufferObjects[bufferIdx];
-
           glEnableVertexAttribArray(VERTEX_ATTRIB_NORMAL_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
-          glBindBuffer(GL_ARRAY_BUFFER, bufferObject);
+          glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
 
           const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
 
@@ -184,15 +187,15 @@ std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Mode
 
   for (size_t i = 0; i < model.textures.size(); i++)
   {
-    auto texture = model.textures[i];
-    // assert(texture.source >= 0);
+    const auto &texture = model.textures[i];
     const auto &image = model.images[texture.source];
+
+    const auto &sampler = texture.sampler >= 0 ? model.samplers[texture.sampler] : defaultSampler;
 
     glBindTexture(GL_TEXTURE_2D, textureObjects[i]);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, image.pixel_type, image.image.data());
 
-    const auto &sampler = texture.sampler >= 0 ? model.samplers[texture.sampler] : defaultSampler;
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, sampler.minFilter != -1 ? sampler.minFilter : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, sampler.magFilter != -1 ? sampler.magFilter : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, sampler.wrapS != -1 ? sampler.wrapS : GL_REPEAT);
@@ -203,9 +206,8 @@ std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Mode
     {
       glGenerateMipmap(GL_TEXTURE_2D);
     }
-
-    glBindTexture(GL_TEXTURE_2D, 0);
   }
+  glBindTexture(GL_TEXTURE_2D, 0);
 
   return textureObjects;
 }
@@ -241,11 +243,6 @@ int ViewerApplication::run()
   glm::vec3 bboxMin, bboxMax;
   computeSceneBounds(model, bboxMin, bboxMax);
 
-  glm::vec3 lightingDirection(1, 1, 1);
-  glm::vec3 lightingIntensity(1, 1, 1);
-  bool lightFromCamera = false;
-  bool applyOcclusion = true;
-
   auto up = glm::vec3(0, 1, 0);
   auto center = (bboxMin + bboxMax) * 0.5f;
   auto diag = bboxMax - bboxMin;
@@ -270,9 +267,15 @@ int ViewerApplication::run()
     cameraController->setCamera(Camera{diag, center, up});
   }
 
+  glm::vec3 lightingDirection(1, 1, 1);
+  glm::vec3 lightingIntensity(1, 1, 1);
+  bool lightFromCamera = false;
+  bool applyOcclusion = true;
+
   auto textureObjects = createTextureObjects(model);
 
   GLuint whiteTexture = 0;
+
   glGenTextures(1, &whiteTexture);
   glBindTexture(GL_TEXTURE_2D, whiteTexture);
   float white[] = {1, 1, 1, 1};
@@ -448,11 +451,6 @@ int ViewerApplication::run()
         glUniform1i(uOcclusionTexture, 3);
       }
     }
-
-    if (uApplyOcclusion >= 0)
-    {
-      glUniform1i(uApplyOcclusion, applyOcclusion);
-    }
   };
 
   // Lambda function to draw the scene
@@ -474,25 +472,30 @@ int ViewerApplication::run()
       glUniform3f(lightingIntensityLocation, lightingIntensity[0], lightingIntensity[1], lightingIntensity[2]);
     }
 
+    if (uApplyOcclusion >= 0)
+    {
+      glUniform1i(uApplyOcclusion, applyOcclusion);
+    }
+
     // The recursive function that should draw a node
     // We use a std::function because a simple lambda cannot be recursive
     const std::function<void(int, const glm::mat4 &)> drawNode = [&](int nodeIdx, const glm::mat4 &parentMatrix) {
       // TODO The drawNode function
-      auto node = model.nodes[nodeIdx];
+      const auto &node = model.nodes[nodeIdx];
       glm::mat4 modelMatrix = getLocalToWorldMatrix(node, parentMatrix);
       if (node.mesh >= 0)
       {
-        glm::mat4 modelViewMatrix = viewMatrix * modelMatrix;
+        const glm::mat4 modelViewMatrix = viewMatrix * modelMatrix;
 
-        glm::mat4 modelViewProjectionMatrix = projMatrix * modelViewMatrix;
+        const glm::mat4 modelViewProjectionMatrix = projMatrix * modelViewMatrix;
 
-        glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
+        const glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
 
         glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewMatrix));
         glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewProjectionMatrix));
         glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 
-        const auto mesh = model.meshes[node.mesh];
+        const auto &mesh = model.meshes[node.mesh];
         const auto &vaoRange = meshindexToVaoRange[node.mesh];
         for (int primIdx = 0; primIdx < mesh.primitives.size(); primIdx++)
         {
@@ -518,7 +521,7 @@ int ViewerApplication::run()
           }
         }
       }
-      for (auto child : node.children)
+      for (const auto child : node.children)
       {
         drawNode(child, modelMatrix);
       }

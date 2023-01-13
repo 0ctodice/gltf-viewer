@@ -1,5 +1,6 @@
 #version 330
 
+in vec3 vViewSpacePosition;
 in vec3 vViewSpaceNormal;
 in vec2 vTexCoords;
 
@@ -36,26 +37,26 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 void main()
 {
   vec3 N = normalize(vViewSpaceNormal);
-  vec3 V = normalize(-vViewSpaceNormal);
+  vec3 V = normalize(-vViewSpacePosition);
   vec3 L = uLightDirection;
   vec3 H = normalize(L + V);
 
-  vec4 metallicRoughness = texture(uMetallicRoughnessTexture, vTexCoords);
-
-  vec3 metallic = vec3(metallicRoughness.b * uMetallicFactor);
-  float roughness = metallicRoughness.g * uRoughnessFactor;
-
   vec4 baseColorFromTexture =
       SRGBtoLINEAR(texture(uBaseColorTexture, vTexCoords));
+  vec4 metallicRoughnessFromTexture = texture(uMetallicRoughnessTexture, vTexCoords);
 
   vec4 baseColor = uBaseColorFactor * baseColorFromTexture;
+  vec3 metallic = vec3(uMetallicFactor * metallicRoughnessFromTexture.b);
+  float roughness = uRoughnessFactor * metallicRoughnessFromTexture.g;
 
   vec3 dielectricSpecular = vec3(0.04);
   vec3 black = vec3(0.);
 
   vec3 c_diff =
       mix(baseColor.rgb * (1 - dielectricSpecular.r), black, metallic);
+
   vec3 F_0 = mix(vec3(dielectricSpecular), baseColor.rgb, metallic);
+  
   float alpha = roughness * roughness;
 
   float VdotH = clamp(dot(V, H), 0., 1.);
