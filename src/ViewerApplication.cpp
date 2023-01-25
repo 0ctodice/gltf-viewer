@@ -48,7 +48,7 @@ bool ViewerApplication::loadGltfFile(tinygltf::Model &model)
   return ret;
 }
 
-std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model &model)
+std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model &model) const
 {
   std::vector<GLuint> buffers(model.buffers.size(), 0);
   glGenBuffers(GLsizei(model.buffers.size()), buffers.data());
@@ -62,7 +62,7 @@ std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model
 }
 
 std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
-    const tinygltf::Model &model, const std::vector<GLuint> &bufferObjects, std::vector<VaoRange> &meshindexToVaoRange)
+    const tinygltf::Model &model, const std::vector<GLuint> &bufferObjects, std::vector<VaoRange> &meshindexToVaoRange) const
 {
   std::vector<GLuint> vertexArrayObjects;
 
@@ -89,8 +89,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
     for (size_t idx = 0; idx < mesh.primitives.size(); idx++)
     {
       const auto vao = vertexArrayObjects[vaoRange.begin + idx];
-      glBindVertexArray(vao);
       const auto &primitive = mesh.primitives[idx];
+      glBindVertexArray(vao);
 
       {
         const auto iterator = primitive.attributes.find("POSITION");
@@ -144,7 +144,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
 
-          glEnableVertexAttribArray(VERTEX_ATTRIB_NORMAL_IDX);
+          glEnableVertexAttribArray(VERTEX_ATTRIB_TEXCOORD0_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
           glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
 
