@@ -61,6 +61,52 @@ std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model
   return buffers;
 }
 
+void ViewerApplication::computeTangentBasis(std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &tangents,
+    std::vector<glm::vec3> &bitangents) const
+{
+  for (int i = 0; i < vertices.size(); i += 3)
+  {
+    if (i + 3 >= vertices.size())
+    {
+      continue;
+    }
+
+    glm::vec3 &v0 = vertices[i + 0];
+    glm::vec3 &v1 = vertices[i + 1];
+    glm::vec3 &v2 = vertices[i + 2];
+
+    glm::vec2 &uv0 = uvs[i + 0];
+    glm::vec2 &uv1 = uvs[i + 1];
+    glm::vec2 &uv2 = uvs[i + 2];
+
+    glm::vec3 edge1 = v1 - v0;
+    glm::vec3 edge2 = v2 - v0;
+    glm::vec2 deltaUV1 = uv1 - uv0;
+    glm::vec2 deltaUV2 = uv2 - uv0;
+
+    float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+    glm::vec3 tangent;
+    glm::vec3 bitangent;
+
+    tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+    tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+    tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+    bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+    bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+    bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
+    tangents.push_back(tangent);
+    tangents.push_back(tangent);
+    tangents.push_back(tangent);
+
+    bitangents.push_back(bitangent);
+    bitangents.push_back(bitangent);
+    bitangents.push_back(bitangent);
+  }
+}
+
 std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
     const tinygltf::Model &model, const std::vector<GLuint> &bufferObjects, std::vector<VaoRange> &meshindexToVaoRange) const
 {
@@ -71,6 +117,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
   const GLuint VERTEX_ATTRIB_POSITION_IDX = 0;
   const GLuint VERTEX_ATTRIB_NORMAL_IDX = 1;
   const GLuint VERTEX_ATTRIB_TEXCOORD0_IDX = 2;
+  const GLuint VERTEX_ATTRIB_ATANGENT_IDX = 3;
+  const GLuint VERTEX_ATTRIB_ABITANGENT_IDX = 4;
 
   for (size_t i = 0; i < model.meshes.size(); i++)
   {
@@ -92,7 +140,13 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
       const auto &primitive = mesh.primitives[idx];
       glBindVertexArray(vao);
 
-      {
+      std::vector<glm::vec3> vertices;
+      std::vector<glm::vec3> normals;
+      std::vector<glm::vec2> uvs;
+      std::vector<glm::vec3> tangents;
+      std::vector<glm::vec3> bitangents;
+
+      { // ADD ATTRIB POINTER POSITION
         const auto iterator = primitive.attributes.find("POSITION");
 
         if (iterator != end(primitive.attributes))
@@ -101,6 +155,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &accessor = model.accessors[accessorIdx];
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
+          const auto &indexBuffer = model.buffers[bufferIdx];
+          const auto positionByteStride = bufferView.byteStride ? bufferView.byteStride : 3 * sizeof(float);
 
           glEnableVertexAttribArray(VERTEX_ATTRIB_POSITION_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
@@ -110,10 +166,16 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
           glVertexAttribPointer(VERTEX_ATTRIB_POSITION_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(bufferView.byteStride),
               (const GLvoid *)byteOffset);
+
+          for (size_t i = 0; i < accessor.count; ++i)
+          {
+            const auto &localPosition = *((const glm::vec3 *)&indexBuffer.data[byteOffset + positionByteStride * i]);
+            vertices.push_back(localPosition);
+          }
         }
       }
 
-      {
+      { // ADD ATTRIB POINTER NORMAL
         const auto iterator = primitive.attributes.find("NORMAL");
 
         if (iterator != end(primitive.attributes))
@@ -134,7 +196,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         }
       }
 
-      {
+      { // ADD ATTRIB POINTER TEXCOORD_0
         const auto iterator = primitive.attributes.find("TEXCOORD_0");
 
         if (iterator != end(primitive.attributes))
@@ -143,6 +205,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &accessor = model.accessors[accessorIdx];
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
+          const auto &texCoordIndexBuffer = model.buffers[bufferIdx];
+          const auto texCoordByteStride = bufferView.byteStride ? bufferView.byteStride : 2 * sizeof(float);
 
           glEnableVertexAttribArray(VERTEX_ATTRIB_TEXCOORD0_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
@@ -152,8 +216,34 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
           glVertexAttribPointer(VERTEX_ATTRIB_TEXCOORD0_IDX, accessor.type, accessor.componentType, GL_FALSE,
               GLsizei(bufferView.byteStride), (const GLvoid *)byteOffset);
+
+          for (size_t i = 0; i < accessor.count; ++i)
+          {
+            const auto &localPosition = *((const glm::vec2 *)&texCoordIndexBuffer.data[byteOffset + texCoordByteStride * i]);
+            uvs.push_back(localPosition);
+          }
         }
       }
+
+      computeTangentBasis(vertices, uvs, tangents, bitangents);
+
+      GLuint tangentbuffer;
+      glGenBuffers(1, &tangentbuffer);
+      glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
+      glBufferData(GL_ARRAY_BUFFER, tangents.size() * sizeof(glm::vec3), &tangents[0], GL_STATIC_DRAW);
+
+      glEnableVertexAttribArray(VERTEX_ATTRIB_ATANGENT_IDX);
+      glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
+      glVertexAttribPointer(VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
+
+      GLuint bitangentbuffer;
+      glGenBuffers(1, &bitangentbuffer);
+      glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
+      glBufferData(GL_ARRAY_BUFFER, bitangents.size() * sizeof(glm::vec3), &bitangents[0], GL_STATIC_DRAW);
+
+      glEnableVertexAttribArray(VERTEX_ATTRIB_ABITANGENT_IDX);
+      glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
+      glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
 
       if (primitive.indices >= 0)
       {
@@ -217,6 +307,7 @@ int ViewerApplication::run()
   // Loader shaders
   const auto glslProgram = compileProgram({m_ShadersRootPath / m_vertexShader, m_ShadersRootPath / m_fragmentShader});
 
+  const auto modelLocation = glGetUniformLocation(glslProgram.glId(), "uModelMatrix");
   const auto modelViewProjMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewProjMatrix");
   const auto modelViewMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewMatrix");
   const auto normalMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
@@ -232,6 +323,7 @@ int ViewerApplication::run()
   const auto uOcclusionTexture = glGetUniformLocation(glslProgram.glId(), "uOcclusionTexture");
   const auto uOcclusionStrength = glGetUniformLocation(glslProgram.glId(), "uOcclusionStrength");
   const auto uApplyOcclusion = glGetUniformLocation(glslProgram.glId(), "uApplyOcclusion");
+  const auto uNormalTexture = glGetUniformLocation(glslProgram.glId(), "uNormalTexture");
 
   tinygltf::Model model;
 
@@ -396,6 +488,22 @@ int ViewerApplication::run()
         glUniform1i(uOcclusionTexture, 3);
       }
 
+      if (uNormalTexture >= 0)
+      {
+        auto normalObject = whiteTexture;
+        if (material.normalTexture.index >= 0)
+        {
+          const auto &texture = model.textures[material.normalTexture.index];
+          if (texture.source >= 0)
+          {
+            normalObject = textureObjects[texture.source];
+          }
+        }
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, normalObject);
+        glUniform1i(uNormalTexture, 4);
+      }
+
     } else
     {
       if (uBaseColorFactor >= 0)
@@ -450,6 +558,13 @@ int ViewerApplication::run()
         glBindTexture(GL_TEXTURE_2D, 0);
         glUniform1i(uOcclusionTexture, 3);
       }
+
+      if (uNormalTexture >= 0)
+      {
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUniform1i(uNormalTexture, 4);
+      }
     }
   };
 
@@ -480,7 +595,6 @@ int ViewerApplication::run()
     // The recursive function that should draw a node
     // We use a std::function because a simple lambda cannot be recursive
     const std::function<void(int, const glm::mat4 &)> drawNode = [&](int nodeIdx, const glm::mat4 &parentMatrix) {
-      // TODO The drawNode function
       const auto &node = model.nodes[nodeIdx];
       glm::mat4 modelMatrix = getLocalToWorldMatrix(node, parentMatrix);
       if (node.mesh >= 0)
@@ -492,6 +606,7 @@ int ViewerApplication::run()
         const glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
 
         glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewMatrix));
+        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(modelMatrix));
         glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewProjectionMatrix));
         glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 

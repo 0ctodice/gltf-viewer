@@ -30,8 +30,8 @@ private:
   const fs::path m_ShadersRootPath;
 
   fs::path m_gltfFilePath;
-  std::string m_vertexShader = "forward.vs.glsl";
-  std::string m_fragmentShader = "pbr_directional_light.fs.glsl";
+  std::string m_vertexShader = "forward_with_normal_map.vs.glsl";
+  std::string m_fragmentShader = "pbr_directional_light_with_normal_map.fs.glsl";
 
   bool m_hasUserCamera = false;
   Camera m_userCamera;
@@ -59,4 +59,6 @@ private:
   std::vector<GLuint> createVertexArrayObjects(
       const tinygltf::Model &model, const std::vector<GLuint> &bufferObjects, std::vector<VaoRange> &meshindexToVaoRange) const;
   std::vector<GLuint> createTextureObjects(const tinygltf::Model &model) const;
+  void computeTangentBasis(std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &tangents,
+      std::vector<glm::vec3> &bitangents) const;
 };
