@@ -107,5 +107,5 @@ void main()
     color = mix(color, color * ao, uOcclusionStrength);
   }
 
-  fColor = LINEARtoSRGB(N);
+  fColor = LINEARtoSRGB(color);
 }
