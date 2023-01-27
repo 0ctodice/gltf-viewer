@@ -66,28 +66,29 @@ void ViewerApplication::computeTangentBasis(std::vector<glm::vec3> &vertices, st
 {
   for (int i = 0; i < vertices.size(); i += 3)
   {
-    if (i + 3 >= vertices.size())
-    {
-      continue;
-    }
+    glm::vec3 &v0 = vertices[(i + 0) % vertices.size()];
+    glm::vec3 &v1 = vertices[(i + 1) % vertices.size()];
+    glm::vec3 &v2 = vertices[(i + 2) % vertices.size()];
 
-    glm::vec3 &v0 = vertices[i + 0];
-    glm::vec3 &v1 = vertices[i + 1];
-    glm::vec3 &v2 = vertices[i + 2];
+    // Shortcuts for UVs
+    glm::vec2 &uv0 = uvs[(i + 0) % uvs.size()];
+    glm::vec2 &uv1 = uvs[(i + 1) % uvs.size()];
+    glm::vec2 &uv2 = uvs[(i + 2) % uvs.size()];
 
-    glm::vec2 &uv0 = uvs[i + 0];
-    glm::vec2 &uv1 = uvs[i + 1];
-    glm::vec2 &uv2 = uvs[i + 2];
-
+    // Edges of the triangle : position delta
     glm::vec3 edge1 = v1 - v0;
     glm::vec3 edge2 = v2 - v0;
+
+    // UV delta
     glm::vec2 deltaUV1 = uv1 - uv0;
     glm::vec2 deltaUV2 = uv2 - uv0;
 
-    float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-
     glm::vec3 tangent;
     glm::vec3 bitangent;
+
+    float factor = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+    float f = factor == 0.f ? 1.f : 1.0f / factor;
 
     tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
     tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
@@ -96,6 +97,16 @@ void ViewerApplication::computeTangentBasis(std::vector<glm::vec3> &vertices, st
     bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
     bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
     bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
+    if (tangent == glm::vec3(0.f))
+    {
+      tangent = glm::vec3(1.0f, 0.f, 0.f);
+    }
+
+    if (bitangent == glm::vec3(0.f))
+    {
+      bitangent = glm::vec3(0.f, 1.0f, 0.f);
+    }
 
     tangents.push_back(tangent);
     tangents.push_back(tangent);
@@ -164,7 +175,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
           const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
 
-          glVertexAttribPointer(VERTEX_ATTRIB_POSITION_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(bufferView.byteStride),
+          glVertexAttribPointer(VERTEX_ATTRIB_POSITION_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(positionByteStride),
               (const GLvoid *)byteOffset);
 
           for (size_t i = 0; i < accessor.count; ++i)
@@ -214,8 +225,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
           const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
 
-          glVertexAttribPointer(VERTEX_ATTRIB_TEXCOORD0_IDX, accessor.type, accessor.componentType, GL_FALSE,
-              GLsizei(bufferView.byteStride), (const GLvoid *)byteOffset);
+          glVertexAttribPointer(VERTEX_ATTRIB_TEXCOORD0_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(texCoordByteStride),
+              (const GLvoid *)byteOffset);
 
           for (size_t i = 0; i < accessor.count; ++i)
           {
@@ -232,14 +243,14 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
       glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
       glBufferData(GL_ARRAY_BUFFER, tangents.size() * sizeof(glm::vec3), &tangents[0], GL_STATIC_DRAW);
 
-      glEnableVertexAttribArray(VERTEX_ATTRIB_ATANGENT_IDX);
-      glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
-      glVertexAttribPointer(VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
-
       GLuint bitangentbuffer;
       glGenBuffers(1, &bitangentbuffer);
       glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
       glBufferData(GL_ARRAY_BUFFER, bitangents.size() * sizeof(glm::vec3), &bitangents[0], GL_STATIC_DRAW);
+
+      glEnableVertexAttribArray(VERTEX_ATTRIB_ATANGENT_IDX);
+      glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
+      glVertexAttribPointer(VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
 
       glEnableVertexAttribArray(VERTEX_ATTRIB_ABITANGENT_IDX);
       glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);

@@ -38,7 +38,7 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 
 void main()
 {
-  vec3 N = normalize(vViewSpaceNormal);
+  // vec3 N = normalize(vViewSpaceNormal);
   vec3 V = normalize(-vViewSpacePosition);
   vec3 L = uLightDirection;
   vec3 H = normalize(L + V);
@@ -53,7 +53,7 @@ void main()
 
   vec3 baseNormalFromTexture = texture(uNormalTexture, vTexCoords).rgb;
   vec3 normal = baseNormalFromTexture * 2.0 - 1.0;
-  N = normalize(TBN * N);
+  vec3 N = normalize(TBN * normal);
 
   vec3 dielectricSpecular = vec3(0.04);
   vec3 black = vec3(0.);

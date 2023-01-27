@@ -23,7 +23,9 @@ void main()
 	vTexCoords = aTexCoords;
     vec3 T = normalize(vec3(uModelMatrix * vec4(aTangent, 0.0)));
     vec3 B = normalize(vec3(uModelMatrix * vec4(aBitangent, 0.0)));
-    vec3 N = normalize(vec3(uModelMatrix * vec4(vViewSpaceNormal, 0.0)));
+    vec3 N = vViewSpaceNormal;
+    // T = normalize(T - dot(T, N) * N);
+    // B = cross(T, N);
     TBN = mat3(T, B, N);
     gl_Position =  uModelViewProjMatrix * vec4(aPosition, 1);
 }
