@@ -21,7 +21,8 @@ uniform sampler2D uOcclusionTexture;
 uniform sampler2D uNormalTexture;
 
 uniform int uApplyOcclusion;
-
+uniform int uApplyNormalMapping;
+uniform int uThereIsANormalMap;
 out vec3 fColor;
 
 const float GAMMA = 2.2;
@@ -38,7 +39,7 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 
 void main()
 {
-  // vec3 N = normalize(vViewSpaceNormal);
+  vec3 N = normalize(vViewSpaceNormal);
   vec3 V = normalize(-vViewSpacePosition);
   vec3 L = uLightDirection;
   vec3 H = normalize(L + V);
@@ -51,9 +52,11 @@ void main()
   vec3 metallic = vec3(uMetallicFactor * metallicRoughnessFromTexture.b);
   float roughness = uRoughnessFactor * metallicRoughnessFromTexture.g;
 
-  vec3 baseNormalFromTexture = texture(uNormalTexture, vTexCoords).rgb;
-  vec3 normal = baseNormalFromTexture * 2.0 - 1.0;
-  vec3 N = normalize(TBN * normal);
+  if(uApplyNormalMapping == 1 && uThereIsANormalMap == 1){
+    vec3 baseNormalFromTexture = texture(uNormalTexture, vTexCoords).rgb;
+    vec3 normal = baseNormalFromTexture * 2.0 - 1.0;
+    N = normalize(TBN * normal);
+  }
 
   vec3 dielectricSpecular = vec3(0.04);
   vec3 black = vec3(0.);
@@ -104,5 +107,5 @@ void main()
     color = mix(color, color * ao, uOcclusionStrength);
   }
 
-  fColor = LINEARtoSRGB(color);
+  fColor = LINEARtoSRGB(N);
 }

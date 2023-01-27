@@ -335,6 +335,8 @@ int ViewerApplication::run()
   const auto uOcclusionStrength = glGetUniformLocation(glslProgram.glId(), "uOcclusionStrength");
   const auto uApplyOcclusion = glGetUniformLocation(glslProgram.glId(), "uApplyOcclusion");
   const auto uNormalTexture = glGetUniformLocation(glslProgram.glId(), "uNormalTexture");
+  const auto uApplyNormalMapping = glGetUniformLocation(glslProgram.glId(), "uApplyNormalMapping");
+  const auto uThereIsANormalMap = glGetUniformLocation(glslProgram.glId(), "uThereIsANormalMap");
 
   tinygltf::Model model;
 
@@ -374,6 +376,8 @@ int ViewerApplication::run()
   glm::vec3 lightingIntensity(1, 1, 1);
   bool lightFromCamera = false;
   bool applyOcclusion = true;
+  bool applyNormalMapping = true;
+  bool thereIsANormalMap = false;
 
   auto textureObjects = createTextureObjects(model);
 
@@ -501,12 +505,13 @@ int ViewerApplication::run()
 
       if (uNormalTexture >= 0)
       {
-        auto normalObject = whiteTexture;
+        auto normalObject = 0u;
         if (material.normalTexture.index >= 0)
         {
           const auto &texture = model.textures[material.normalTexture.index];
           if (texture.source >= 0)
           {
+            thereIsANormalMap = true;
             normalObject = textureObjects[texture.source];
           }
         }
@@ -601,6 +606,16 @@ int ViewerApplication::run()
     if (uApplyOcclusion >= 0)
     {
       glUniform1i(uApplyOcclusion, applyOcclusion);
+    }
+
+    if (uApplyNormalMapping >= 0)
+    {
+      glUniform1i(uApplyNormalMapping, applyNormalMapping);
+    }
+
+    if (uThereIsANormalMap >= 0)
+    {
+      glUniform1i(uThereIsANormalMap, thereIsANormalMap);
     }
 
     // The recursive function that should draw a node
@@ -743,6 +758,7 @@ int ViewerApplication::run()
         }
         ImGui::Checkbox("light from camera", &lightFromCamera);
         ImGui::Checkbox("Ambient occlusion", &applyOcclusion);
+        ImGui::Checkbox("Normal Mapping", &applyNormalMapping);
       }
 
       ImGui::End();
