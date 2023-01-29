@@ -88,7 +88,7 @@ void ViewerApplication::computeTangentBasis(std::vector<glm::vec3> &vertices, st
 
     float factor = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 
-    float f = factor == 0.f ? 1.f : 1.0f / factor;
+    float f = factor == 0.f ? 0.f : 1.0f / factor;
 
     tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
     tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
@@ -195,6 +195,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &accessor = model.accessors[accessorIdx];
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
+          const auto &indexBuffer = model.buffers[bufferIdx];
+          const auto positionByteStride = bufferView.byteStride ? bufferView.byteStride : 3 * sizeof(float);
 
           glEnableVertexAttribArray(VERTEX_ATTRIB_NORMAL_IDX);
           assert(GL_ARRAY_BUFFER == bufferView.target);
@@ -204,6 +206,12 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
           glVertexAttribPointer(VERTEX_ATTRIB_NORMAL_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(bufferView.byteStride),
               (const GLvoid *)byteOffset);
+
+          for (size_t i = 0; i < accessor.count; ++i)
+          {
+            const auto &localPosition = *((const glm::vec3 *)&indexBuffer.data[byteOffset + positionByteStride * i]);
+            normals.push_back(localPosition);
+          }
         }
       }
 
