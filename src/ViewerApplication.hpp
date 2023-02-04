@@ -30,8 +30,10 @@ private:
   const fs::path m_ShadersRootPath;
 
   fs::path m_gltfFilePath;
-  std::string m_vertexShader = "forward.vs.glsl";
-  std::string m_fragmentShader = "pbr_directional_light.fs.glsl";
+  std::string m_vertexShader = "forward_shadow.vs.glsl";
+  std::string m_fragmentShader = "pbr_directional_light_shadow.fs.glsl";
+  std::string m_depthVertexShader = "depth_map.vs.glsl";
+  std::string m_emptyFragmentShader = "empty_shader.fs.glsl";
 
   bool m_hasUserCamera = false;
   Camera m_userCamera;

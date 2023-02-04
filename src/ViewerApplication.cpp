@@ -232,6 +232,12 @@ int ViewerApplication::run()
   const auto uOcclusionTexture = glGetUniformLocation(glslProgram.glId(), "uOcclusionTexture");
   const auto uOcclusionStrength = glGetUniformLocation(glslProgram.glId(), "uOcclusionStrength");
   const auto uApplyOcclusion = glGetUniformLocation(glslProgram.glId(), "uApplyOcclusion");
+  const auto uShadowMap = glGetUniformLocation(glslProgram.glId(), "uShadowMap");
+  const auto uApplyShadowMap = glGetUniformLocation(glslProgram.glId(), "uApplyShadowMap");
+
+  const auto simpleDepthShader = compileProgram({m_ShadersRootPath / m_depthVertexShader, m_ShadersRootPath / m_emptyFragmentShader});
+  const auto lightSpaceMatrixLocation = glGetUniformLocation(simpleDepthShader.glId(), "lightSpaceMatrix");
+  const auto modelMatrixLocation = glGetUniformLocation(simpleDepthShader.glId(), "model");
 
   tinygltf::Model model;
 
@@ -271,6 +277,7 @@ int ViewerApplication::run()
   glm::vec3 lightingIntensity(1, 1, 1);
   bool lightFromCamera = false;
   bool applyOcclusion = true;
+  bool applyShadowMap = true;
 
   auto textureObjects = createTextureObjects(model);
 
@@ -287,6 +294,24 @@ int ViewerApplication::run()
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
   glBindTexture(GL_TEXTURE_2D, 0);
 
+  const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+
+  GLuint depthMap;
+  glGenTextures(1, &depthMap);
+  glBindTexture(GL_TEXTURE_2D, depthMap);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  GLuint depthMapFBO;
+  glGenFramebuffers(1, &depthMapFBO);
+  glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
   auto modelBufferObjects = createBufferObjects(model);
 
   std::vector<VaoRange> meshindexToVaoRange;
@@ -294,7 +319,9 @@ int ViewerApplication::run()
 
   // Setup OpenGL state for rendering
   glEnable(GL_DEPTH_TEST);
-  glslProgram.use();
+
+  // The recursive function that should draw a node
+  // We use a std::function because a simple lambda cannot be recursive
 
   const auto bindMaterial = [&](const auto materialIndex) {
     // Material binding
@@ -395,6 +422,12 @@ int ViewerApplication::run()
         glBindTexture(GL_TEXTURE_2D, occlusionObject);
         glUniform1i(uOcclusionTexture, 3);
       }
+      if (uShadowMap >= 0)
+      {
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, depthMap);
+        glUniform1i(uShadowMap, 4);
+      }
 
     } else
     {
@@ -450,11 +483,102 @@ int ViewerApplication::run()
         glBindTexture(GL_TEXTURE_2D, 0);
         glUniform1i(uOcclusionTexture, 3);
       }
+      if (uShadowMap >= 0)
+      {
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUniform1i(uShadowMap, 4);
+      }
     }
+  };
+
+  const std::function<void(bool, glm::mat4, glm::mat4, int, const glm::mat4 &)> drawNode =
+      [&](bool isShadow, glm::mat4 viewMatrix, glm::mat4 projMatrix, int nodeIdx, const glm::mat4 &parentMatrix) {
+        // TODO The drawNode function
+        const auto &node = model.nodes[nodeIdx];
+        glm::mat4 modelMatrix = getLocalToWorldMatrix(node, parentMatrix);
+        if (node.mesh >= 0)
+        {
+
+          if (!isShadow)
+          {
+            const glm::mat4 modelViewMatrix = viewMatrix * modelMatrix;
+            const glm::mat4 modelViewProjectionMatrix = projMatrix * modelViewMatrix;
+            const glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
+            glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewMatrix));
+            glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewProjectionMatrix));
+            glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+          } else
+          {
+            glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+          }
+
+          const auto &mesh = model.meshes[node.mesh];
+          const auto &vaoRange = meshindexToVaoRange[node.mesh];
+          for (int primIdx = 0; primIdx < mesh.primitives.size(); primIdx++)
+          {
+            const auto vao = vertexArrayObjects[vaoRange.begin + primIdx];
+
+            const auto &primitive = mesh.primitives[primIdx];
+
+            if (!isShadow)
+              bindMaterial(primitive.material);
+
+            glBindVertexArray(vao);
+
+            if (primitive.indices >= 0)
+            {
+              const auto &accessor = model.accessors[primitive.indices];
+              const auto &bufferView = model.bufferViews[accessor.bufferView];
+              const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
+              glDrawElements(primitive.mode, accessor.count, accessor.componentType, (const GLvoid *)byteOffset);
+            } else
+            {
+              const auto accessorIdx = (*begin(primitive.attributes)).second;
+              const auto &accessor = model.accessors[accessorIdx];
+              glDrawArrays(primitive.mode, 0, GLsizei(accessor.count));
+            }
+          }
+        }
+
+        for (const auto child : node.children)
+        {
+          drawNode(isShadow, viewMatrix, projMatrix, child, modelMatrix);
+        }
+      };
+
+  const auto renderDepthMap = [&]() {
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    float near_plane = 1.0f, far_plane = 7.5f;
+    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+    glm::mat4 lightView = glm::lookAt(glm::vec3(-2.0f, 4.0f, -1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+    simpleDepthShader.use();
+
+    glUniformMatrix4fv(lightSpaceMatrixLocation, 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+
+    if (model.defaultScene >= 0)
+    {
+      for (auto node : model.scenes[model.defaultScene].nodes)
+      {
+        drawNode(true, lightView, lightProjection, node, glm::mat4(1));
+      }
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
   };
 
   // Lambda function to draw the scene
   const auto drawScene = [&](const Camera &camera) {
+    glDrawBuffer(GL_FRONT);
+    glReadBuffer(GL_FRONT);
+    glslProgram.use();
     glViewport(0, 0, m_nWindowWidth, m_nWindowHeight);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -477,62 +601,17 @@ int ViewerApplication::run()
       glUniform1i(uApplyOcclusion, applyOcclusion);
     }
 
-    // The recursive function that should draw a node
-    // We use a std::function because a simple lambda cannot be recursive
-    const std::function<void(int, const glm::mat4 &)> drawNode = [&](int nodeIdx, const glm::mat4 &parentMatrix) {
-      // TODO The drawNode function
-      const auto &node = model.nodes[nodeIdx];
-      glm::mat4 modelMatrix = getLocalToWorldMatrix(node, parentMatrix);
-      if (node.mesh >= 0)
-      {
-        const glm::mat4 modelViewMatrix = viewMatrix * modelMatrix;
-
-        const glm::mat4 modelViewProjectionMatrix = projMatrix * modelViewMatrix;
-
-        const glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
-
-        glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewMatrix));
-        glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewProjectionMatrix));
-        glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, glm::value_ptr(normalMatrix));
-
-        const auto &mesh = model.meshes[node.mesh];
-        const auto &vaoRange = meshindexToVaoRange[node.mesh];
-        for (int primIdx = 0; primIdx < mesh.primitives.size(); primIdx++)
-        {
-          const auto vao = vertexArrayObjects[vaoRange.begin + primIdx];
-
-          const auto &primitive = mesh.primitives[primIdx];
-
-          bindMaterial(primitive.material);
-
-          glBindVertexArray(vao);
-
-          if (primitive.indices >= 0)
-          {
-            const auto &accessor = model.accessors[primitive.indices];
-            const auto &bufferView = model.bufferViews[accessor.bufferView];
-            const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
-            glDrawElements(primitive.mode, accessor.count, accessor.componentType, (const GLvoid *)byteOffset);
-          } else
-          {
-            const auto accessorIdx = (*begin(primitive.attributes)).second;
-            const auto &accessor = model.accessors[accessorIdx];
-            glDrawArrays(primitive.mode, 0, GLsizei(accessor.count));
-          }
-        }
-      }
-      for (const auto child : node.children)
-      {
-        drawNode(child, modelMatrix);
-      }
-    };
+    if (uApplyShadowMap >= 0)
+    {
+      glUniform1i(uApplyShadowMap, applyShadowMap);
+    }
 
     // Draw the scene referenced by gltf file
     if (model.defaultScene >= 0)
     {
       for (auto node : model.scenes[model.defaultScene].nodes)
       {
-        drawNode(node, glm::mat4(1));
+        drawNode(false, viewMatrix, projMatrix, node, glm::mat4(1));
       }
     }
   };
@@ -552,6 +631,8 @@ int ViewerApplication::run()
   for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose(); ++iterationCount)
   {
     const auto seconds = glfwGetTime();
+
+    renderDepthMap();
 
     const auto camera = cameraController->getCamera();
     drawScene(camera);
@@ -617,6 +698,7 @@ int ViewerApplication::run()
         }
         ImGui::Checkbox("light from camera", &lightFromCamera);
         ImGui::Checkbox("Ambient occlusion", &applyOcclusion);
+        ImGui::Checkbox("Shadow Map", &applyShadowMap);
       }
 
       ImGui::End();

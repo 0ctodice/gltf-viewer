@@ -52,6 +52,12 @@ view_helmet() {
   dist/gltf-viewer viewer gltf-sample-models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf
 }
 
+view_dragon() {
+  cmake_prepare
+  cmake_install
+  dist/gltf-viewer viewer gltf-sample-models/2.0/DragonAttenuation/glTF/DragonAttenuation.gltf
+}
+
 render_sponza() {
   cmake_prepare
   cmake_install
