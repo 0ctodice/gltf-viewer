@@ -237,7 +237,6 @@ int ViewerApplication::run()
 
   const auto simpleDepthShader = compileProgram({m_ShadersRootPath / m_depthVertexShader, m_ShadersRootPath / m_emptyFragmentShader});
   const auto lightSpaceMatrixLocation = glGetUniformLocation(simpleDepthShader.glId(), "lightSpaceMatrix");
-  const auto modelMatrixLocation = glGetUniformLocation(simpleDepthShader.glId(), "model");
 
   tinygltf::Model model;
 
@@ -294,23 +293,28 @@ int ViewerApplication::run()
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
   glBindTexture(GL_TEXTURE_2D, 0);
 
-  const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+  const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
+
+  GLuint depthMapFBO;
+  glGenFramebuffers(1, &depthMapFBO);
 
   GLuint depthMap;
   glGenTextures(1, &depthMap);
   glBindTexture(GL_TEXTURE_2D, depthMap);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-  glBindTexture(GL_TEXTURE_2D, 0);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
-  GLuint depthMapFBO;
-  glGenFramebuffers(1, &depthMapFBO);
   glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+  glDrawBuffer(GL_NONE);
+  glReadBuffer(GL_NONE);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    return false;
 
   auto modelBufferObjects = createBufferObjects(model);
 
@@ -508,9 +512,6 @@ int ViewerApplication::run()
             glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewMatrix));
             glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelViewProjectionMatrix));
             glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, glm::value_ptr(normalMatrix));
-          } else
-          {
-            glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelMatrix));
           }
 
           const auto &mesh = model.meshes[node.mesh];
@@ -548,16 +549,16 @@ int ViewerApplication::run()
       };
 
   const auto renderDepthMap = [&]() {
-    glDrawBuffer(GL_NONE);
-    glReadBuffer(GL_NONE);
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    float near_plane = 1.0f, far_plane = 7.5f;
-    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-    glm::mat4 lightView = glm::lookAt(glm::vec3(-2.0f, 4.0f, -1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+    float near_plane = 0.1f, far_plane = 7.5f;
+    glm::mat4 lightProjection = glm::ortho(-35.0f, 35.0f, -35.0f, 35.0f, near_plane, far_plane);
+    glm::mat4 lightView = glm::lookAt(20.0f * lightingDirection, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    // glm::mat4 lightView = glm::lookAt(glm::vec3(-2.0f, 4.0f, -1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 depthModelMatrix = glm::mat4(1.0);
+    glm::mat4 lightSpaceMatrix = lightProjection * lightView * depthModelMatrix;
 
     simpleDepthShader.use();
 

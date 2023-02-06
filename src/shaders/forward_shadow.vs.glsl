@@ -20,5 +20,5 @@ void main()
 	vViewSpaceNormal = normalize(vec3(uNormalMatrix * vec4(aNormal, 0)));
 	vTexCoords = aTexCoords;
     vPosLightSpace = lightSpaceMatrix * vec4(vViewSpacePosition, 1.0);
-    gl_Position =  uModelViewProjMatrix * vec4(aPosition, 1);
+    gl_Position =  uModelViewProjMatrix * vec4(aPosition, 1.0);
 }

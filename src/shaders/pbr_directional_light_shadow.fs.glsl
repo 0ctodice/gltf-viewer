@@ -39,12 +39,13 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 }
 
 float ShadowComputing(vec4 posLightSpace){
+  float bias = 0.005f;
   vec3 projCoords = posLightSpace.xyz / posLightSpace.w;
   projCoords = projCoords * 0.5 + 0.5;
-  float closestDepth = SRGBtoLINEAR(texture(uShadowMap, projCoords.xy)).r;
+  float closestDepth = texture(uShadowMap, projCoords.xy).z;
   float currentDepth = projCoords.z;
 
-  return currentDepth > closestDepth ? 1.0 : 0.0;
+  return currentDepth > closestDepth + bias ? 1.0 : 0.5;
 }
 
 void main()
@@ -94,22 +95,23 @@ void main()
   float baseDenomD = (NdotH * NdotH * (sqrAlpha - 1.) + 1.);
   float D = M_1_PI * sqrAlpha / (baseDenomD * baseDenomD);
 
-  vec3 f_specular = F * Vis * D;
+  float specular = Vis * D;
 
   vec3 diffuse = c_diff * M_1_PI;
+
+  if(uApplyShadowMap == 1){
+    float shadow = ShadowComputing(vPosLightSpace);
+    diffuse *= (1.0f - shadow);
+    specular *= (1.0f - shadow);
+  }
+
+  vec3 f_specular = F * specular;
 
   vec3 f_diffuse = (1. - F) * diffuse;
 
   vec3 emmissive = SRGBtoLINEAR(texture2D(uEmmissionTexture, vTexCoords)).rgb * uEmmissionFactor;
 
   vec3 color = (f_diffuse + f_specular) * uLightIntensity * NdotL;
-
-  if(uApplyShadowMap == 1){
-    float shadow = ShadowComputing(vPosLightSpace);
-    // color *= (1.0 - shadow);
-    color = vec3((1.0 - shadow) * 255.f, 0.f, 0.f);
-  }
-
   color += emmissive;
 
   if(uApplyOcclusion == 1){
