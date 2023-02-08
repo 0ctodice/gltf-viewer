@@ -68,9 +68,6 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
   meshindexToVaoRange.resize(model.meshes.size());
 
-  const GLuint VERTEX_ATTRIB_POSITION_IDX = 0;
-  const GLuint VERTEX_ATTRIB_NORMAL_IDX = 1;
-  const GLuint VERTEX_ATTRIB_TEXCOORD0_IDX = 2;
   const GLuint VERTEX_ATTRIB_ATANGENT_IDX = 3;
   const GLuint VERTEX_ATTRIB_ABITANGENT_IDX = 4;
 
