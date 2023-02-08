@@ -11,12 +11,12 @@ uniform vec3 uLightIntensity;
 uniform vec4 uBaseColorFactor;
 uniform float uMetallicFactor;
 uniform float uRoughnessFactor;
-uniform vec3 uEmmissionFactor; 
+uniform vec3 uEmissiveFactor; 
 uniform float uOcclusionStrength;
 
 uniform sampler2D uBaseColorTexture;
 uniform sampler2D uMetallicRoughnessTexture;
-uniform sampler2D uEmmissionTexture;
+uniform sampler2D uEmissiveTexture;
 uniform sampler2D uOcclusionTexture;
 
 uniform sampler2D uShadowMap;
@@ -39,13 +39,12 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 }
 
 float ShadowComputing(vec4 posLightSpace){
-  float bias = 0.005f;
   vec3 projCoords = posLightSpace.xyz / posLightSpace.w;
   projCoords = projCoords * 0.5 + 0.5;
   float closestDepth = texture(uShadowMap, projCoords.xy).z;
   float currentDepth = projCoords.z;
 
-  return currentDepth > closestDepth + bias ? 1.0 : 0.5;
+  return currentDepth > closestDepth ? 1.0 : 0.5;
 }
 
 void main()
@@ -99,17 +98,17 @@ void main()
 
   vec3 diffuse = c_diff * M_1_PI;
 
-  if(uApplyShadowMap == 1){
-    float shadow = ShadowComputing(vPosLightSpace);
-    diffuse *= (1.0f - shadow);
-    specular *= (1.0f - shadow);
-  }
-
   vec3 f_specular = F * specular;
 
   vec3 f_diffuse = (1. - F) * diffuse;
 
-  vec3 emmissive = SRGBtoLINEAR(texture2D(uEmmissionTexture, vTexCoords)).rgb * uEmmissionFactor;
+  if(uApplyShadowMap == 1){
+    float shadow = ShadowComputing(vPosLightSpace);
+    f_specular *= (1.0f - shadow);
+    f_diffuse *= (1.0f - shadow);
+  }
+
+  vec3 emmissive = SRGBtoLINEAR(texture2D(uEmissiveTexture, vTexCoords)).rgb * uEmissiveFactor;
 
   vec3 color = (f_diffuse + f_specular) * uLightIntensity * NdotL;
   color += emmissive;
@@ -119,5 +118,19 @@ void main()
     color = mix(color, color * ao, uOcclusionStrength);
   }
 
-  fColor = LINEARtoSRGB(color);
+  if(uApplyShadowMap == 1){
+    float shadow = ShadowComputing(vPosLightSpace);
+    fColor = vec3(shadow);
+  } else {
+    fColor = LINEARtoSRGB(color);
+  }
+
+  // if(uApplyShadowMap == 1){
+  //   float depthValue = texture(uShadowMap, vTexCoords).r;
+  //   fColor = vec3(depthValue);
+  // } else {
+  //   fColor = LINEARtoSRGB(color);
+  // }
+    // fColor = LINEARtoSRGB(color);
+
 }

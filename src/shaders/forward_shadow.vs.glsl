@@ -13,12 +13,13 @@ uniform mat4 uModelViewProjMatrix;
 uniform mat4 uModelViewMatrix;
 uniform mat4 uNormalMatrix;
 uniform mat4 lightSpaceMatrix;
+uniform mat4 modelMatrix;
 
 void main()
 {
     vViewSpacePosition = vec3(uModelViewMatrix * vec4(aPosition, 1));
 	vViewSpaceNormal = normalize(vec3(uNormalMatrix * vec4(aNormal, 0)));
 	vTexCoords = aTexCoords;
-    vPosLightSpace = lightSpaceMatrix * vec4(vViewSpacePosition, 1.0);
+    vPosLightSpace = lightSpaceMatrix * vec4(aPosition, 1.0);
     gl_Position = uModelViewProjMatrix * vec4(aPosition, 1.0);
 }
