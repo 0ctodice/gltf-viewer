@@ -131,6 +131,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         {
           continue;
         }
+
         const auto &positionAccessor = model.accessors[(*positionAttrIdxIt).second];
         const auto &texCoordAccessor = model.accessors[(*texCoordAttrIdxIt).second];
 
@@ -146,15 +147,15 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         const auto positionByteStride = positionBufferView.byteStride ? positionBufferView.byteStride : 3 * sizeof(float);
         const auto texCoordByteStride = texCoordBufferView.byteStride ? texCoordBufferView.byteStride : 2 * sizeof(float);
 
-        const auto computeTangentBitangent = [&](uint32_t index1, uint32_t index2, uint32_t index3) {
-          const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index1]);
-          const glm::vec3 &v1 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index2]);
-          const glm::vec3 &v2 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index3]);
+        const auto computeTangentBitangent = [&](uint32_t indexes[]) {
+          const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
+          const glm::vec3 &v1 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[1]]);
+          const glm::vec3 &v2 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[2]]);
 
           // Shortcuts for UVs
-          const glm::vec2 &uv0 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index1]);
-          const glm::vec2 &uv1 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index2]);
-          const glm::vec2 &uv2 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index3]);
+          const glm::vec2 &uv0 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * indexes[0]]);
+          const glm::vec2 &uv1 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * indexes[1]]);
+          const glm::vec2 &uv2 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * indexes[2]]);
 
           // Edges of the triangle : position delta
           glm::vec3 edge1 = v1 - v0;
@@ -212,37 +213,34 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
             break;
           }
 
-          for (size_t i = 0; i < indexAccessor.count; i += 3)
+          uint32_t indexes[3];
+
+          for (size_t j = 0; j < indexAccessor.count; j += 3)
           {
-            uint32_t index1 = 0;
-            uint32_t index2 = 0;
-            uint32_t index3 = 0;
-            switch (indexAccessor.componentType)
+            for (int k = 0; k < 3; k++)
             {
-            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-              index1 = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
-              index2 = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 1)]);
-              index3 = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 2)]);
-              break;
-            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-              index1 = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
-              index2 = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 1)]);
-              index3 = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 2)]);
-              break;
-            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-              index1 = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
-              index2 = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 1)]);
-              index3 = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 2)]);
-              break;
+              switch (indexAccessor.componentType)
+              {
+              case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                indexes[k] = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (j + k)]);
+                break;
+              case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                indexes[k] = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (j + k)]);
+                break;
+              case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+                indexes[k] = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (j + k)]);
+                break;
+              }
             }
 
-            computeTangentBitangent(index1, index2, index3);
+            computeTangentBitangent(indexes);
           }
         } else
         {
-          for (size_t i = 0; i < positionAccessor.count; i += 3)
+          for (size_t j = 0; j < positionAccessor.count; j += 3)
           {
-            computeTangentBitangent(i, i + 1, i + 2);
+            uint32_t indexes[3] = {j, j + 1, j + 2};
+            computeTangentBitangent(indexes);
           }
         }
 
