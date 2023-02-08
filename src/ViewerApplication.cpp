@@ -61,53 +61,6 @@ std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model
   return buffers;
 }
 
-void ViewerApplication::computeTangentBasis(std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &tangents,
-    std::vector<glm::vec3> &bitangents) const
-{
-  for (int i = 0; i < vertices.size(); i += 3)
-  {
-    glm::vec3 &v0 = vertices[(i + 0) % vertices.size()];
-    glm::vec3 &v1 = vertices[(i + 1) % vertices.size()];
-    glm::vec3 &v2 = vertices[(i + 2) % vertices.size()];
-
-    // Shortcuts for UVs
-    glm::vec2 &uv0 = uvs[(i + 0) % uvs.size()];
-    glm::vec2 &uv1 = uvs[(i + 1) % uvs.size()];
-    glm::vec2 &uv2 = uvs[(i + 2) % uvs.size()];
-
-    // Edges of the triangle : position delta
-    glm::vec3 edge1 = v1 - v0;
-    glm::vec3 edge2 = v2 - v0;
-
-    // UV delta
-    glm::vec2 deltaUV1 = uv1 - uv0;
-    glm::vec2 deltaUV2 = uv2 - uv0;
-
-    glm::vec3 tangent;
-    glm::vec3 bitangent;
-
-    float factor = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-
-    float f = factor == 0.f ? 0.f : 1.0f / factor;
-
-    tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-    tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-    tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-
-    bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-    bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-    bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-
-    tangents.push_back(tangent);
-    tangents.push_back(tangent);
-    tangents.push_back(tangent);
-
-    bitangents.push_back(bitangent);
-    bitangents.push_back(bitangent);
-    bitangents.push_back(bitangent);
-  }
-}
-
 std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
     const tinygltf::Model &model, const std::vector<GLuint> &bufferObjects, std::vector<VaoRange> &meshindexToVaoRange) const
 {
@@ -141,14 +94,14 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
       const auto &primitive = mesh.primitives[idx];
       glBindVertexArray(vao);
 
-      std::vector<glm::vec3> vertices;
-      std::vector<glm::vec3> normals;
-      std::vector<glm::vec2> uvs;
       std::vector<glm::vec3> tangents;
       std::vector<glm::vec3> bitangents;
 
-      { // ADD ATTRIB POINTER POSITION
-        const auto iterator = primitive.attributes.find("POSITION");
+      std::string attrs[] = {"POSITION", "NORMAL", "TEXCOORD_0"};
+
+      for (GLuint attrIdx = 0; attrIdx < 3; attrIdx++)
+      {
+        const auto iterator = primitive.attributes.find(attrs[attrIdx]);
 
         if (iterator != end(primitive.attributes))
         {
@@ -156,63 +109,15 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           const auto &accessor = model.accessors[accessorIdx];
           const auto &bufferView = model.bufferViews[accessor.bufferView];
           const auto bufferIdx = bufferView.buffer;
-          const auto &indexBuffer = model.buffers[bufferIdx];
-          const auto positionByteStride = bufferView.byteStride ? bufferView.byteStride : 3 * sizeof(float);
 
-          glEnableVertexAttribArray(VERTEX_ATTRIB_POSITION_IDX);
+          glEnableVertexAttribArray(attrIdx);
           assert(GL_ARRAY_BUFFER == bufferView.target);
           glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
 
           const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
 
-          glVertexAttribPointer(VERTEX_ATTRIB_POSITION_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(positionByteStride),
-              (const GLvoid *)byteOffset);
-        }
-      }
-
-      { // ADD ATTRIB POINTER NORMAL
-        const auto iterator = primitive.attributes.find("NORMAL");
-
-        if (iterator != end(primitive.attributes))
-        {
-          const auto accessorIdx = (*iterator).second;
-          const auto &accessor = model.accessors[accessorIdx];
-          const auto &bufferView = model.bufferViews[accessor.bufferView];
-          const auto bufferIdx = bufferView.buffer;
-          const auto &indexBuffer = model.buffers[bufferIdx];
-          const auto positionByteStride = bufferView.byteStride ? bufferView.byteStride : 3 * sizeof(float);
-
-          glEnableVertexAttribArray(VERTEX_ATTRIB_NORMAL_IDX);
-          assert(GL_ARRAY_BUFFER == bufferView.target);
-          glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
-
-          const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
-
-          glVertexAttribPointer(VERTEX_ATTRIB_NORMAL_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(bufferView.byteStride),
-              (const GLvoid *)byteOffset);
-        }
-      }
-
-      { // ADD ATTRIB POINTER TEXCOORD_0
-        const auto iterator = primitive.attributes.find("TEXCOORD_0");
-
-        if (iterator != end(primitive.attributes))
-        {
-          const auto accessorIdx = (*iterator).second;
-          const auto &accessor = model.accessors[accessorIdx];
-          const auto &bufferView = model.bufferViews[accessor.bufferView];
-          const auto bufferIdx = bufferView.buffer;
-          const auto &texCoordIndexBuffer = model.buffers[bufferIdx];
-          const auto texCoordByteStride = bufferView.byteStride ? bufferView.byteStride : 2 * sizeof(float);
-
-          glEnableVertexAttribArray(VERTEX_ATTRIB_TEXCOORD0_IDX);
-          assert(GL_ARRAY_BUFFER == bufferView.target);
-          glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[bufferIdx]);
-
-          const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
-
-          glVertexAttribPointer(VERTEX_ATTRIB_TEXCOORD0_IDX, accessor.type, accessor.componentType, GL_FALSE, GLsizei(texCoordByteStride),
-              (const GLvoid *)byteOffset);
+          glVertexAttribPointer(
+              attrIdx, accessor.type, accessor.componentType, GL_FALSE, GLsizei(bufferView.byteStride), (const GLvoid *)byteOffset);
         }
       }
 
@@ -241,6 +146,48 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         const auto positionByteStride = positionBufferView.byteStride ? positionBufferView.byteStride : 3 * sizeof(float);
         const auto texCoordByteStride = texCoordBufferView.byteStride ? texCoordBufferView.byteStride : 2 * sizeof(float);
 
+        const auto computeTangentBitangent = [&](uint32_t index1, uint32_t index2, uint32_t index3) {
+          const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index1]);
+          const glm::vec3 &v1 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index2]);
+          const glm::vec3 &v2 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index3]);
+
+          // Shortcuts for UVs
+          const glm::vec2 &uv0 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index1]);
+          const glm::vec2 &uv1 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index2]);
+          const glm::vec2 &uv2 = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index3]);
+
+          // Edges of the triangle : position delta
+          glm::vec3 edge1 = v1 - v0;
+          glm::vec3 edge2 = v2 - v0;
+
+          // UV delta
+          glm::vec2 deltaUV1 = uv1 - uv0;
+          glm::vec2 deltaUV2 = uv2 - uv0;
+
+          glm::vec3 tangent;
+          glm::vec3 bitangent;
+
+          float factor = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+          float f = 1.0f / factor;
+
+          tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+          tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+          tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+          bitangent.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+          bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+          bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
+          tangents.push_back(tangent);
+          tangents.push_back(tangent);
+          tangents.push_back(tangent);
+
+          bitangents.push_back(bitangent);
+          bitangents.push_back(bitangent);
+          bitangents.push_back(bitangent);
+        };
+
         if (primitive.indices >= 0)
         {
           const auto &indexAccessor = model.accessors[primitive.indices];
@@ -265,39 +212,39 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
             break;
           }
 
-          for (size_t i = 0; i < indexAccessor.count; ++i)
+          for (size_t i = 0; i < indexAccessor.count; i += 3)
           {
-            uint32_t index = 0;
+            uint32_t index1 = 0;
+            uint32_t index2 = 0;
+            uint32_t index3 = 0;
             switch (indexAccessor.componentType)
             {
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-              index = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
+              index1 = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
+              index2 = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 1)]);
+              index3 = *((const uint8_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 2)]);
               break;
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-              index = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
+              index1 = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
+              index2 = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 1)]);
+              index3 = *((const uint16_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 2)]);
               break;
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-              index = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
+              index1 = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * i]);
+              index2 = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 1)]);
+              index3 = *((const uint32_t *)&indexBuffer.data[indexByteOffset + indexByteStride * (i + 2)]);
               break;
             }
-            const auto &localPosition = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * index]);
-            const auto &localUvs = *((const glm::vec2 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * index]);
 
-            vertices.push_back(localPosition);
-            uvs.push_back(localUvs);
+            computeTangentBitangent(index1, index2, index3);
           }
         } else
         {
-          for (size_t i = 0; i < positionAccessor.count; ++i)
+          for (size_t i = 0; i < positionAccessor.count; i += 3)
           {
-            const auto &localPosition = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * i]);
-            const auto &localUvs = *((const glm::vec3 *)&texCoordBuffer.data[texCoordByteOffset + texCoordByteStride * i]);
-            vertices.push_back(localPosition);
-            uvs.push_back(localUvs);
+            computeTangentBitangent(i, i + 1, i + 2);
           }
         }
-
-        computeTangentBasis(vertices, uvs, tangents, bitangents);
 
         GLuint tangentbuffer;
         glGenBuffers(1, &tangentbuffer);

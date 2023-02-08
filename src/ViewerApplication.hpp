@@ -59,6 +59,4 @@ private:
   std::vector<GLuint> createVertexArrayObjects(
       const tinygltf::Model &model, const std::vector<GLuint> &bufferObjects, std::vector<VaoRange> &meshindexToVaoRange) const;
   std::vector<GLuint> createTextureObjects(const tinygltf::Model &model) const;
-  void computeTangentBasis(std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &tangents,
-      std::vector<glm::vec3> &bitangents) const;
 };
