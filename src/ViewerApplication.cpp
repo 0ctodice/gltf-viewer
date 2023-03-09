@@ -59,7 +59,6 @@ std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model
   }
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-  std::cout << "Done createBufferObjects" << std::endl;
   return buffers;
 }
 
@@ -72,6 +71,9 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
   const GLuint VERTEX_ATTRIB_ATANGENT_IDX = 3;
   const GLuint VERTEX_ATTRIB_ABITANGENT_IDX = 4;
+
+  glm::vec3 *tangents = nullptr;
+  glm::vec3 *bitangents = nullptr;
 
   for (size_t i = 0; i < model.meshes.size(); i++)
   {
@@ -143,8 +145,11 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         const auto positionByteStride = positionBufferView.byteStride ? positionBufferView.byteStride : 3 * sizeof(float);
         const auto texCoordByteStride = texCoordBufferView.byteStride ? texCoordBufferView.byteStride : 2 * sizeof(float);
 
-        glm::vec3 *tangents = new glm::vec3[positionBuffer.data.size()];
-        glm::vec3 *bitangents = new glm::vec3[positionBuffer.data.size()];
+        if (tangents == nullptr)
+        {
+          tangents = new glm::vec3[positionBuffer.data.size()];
+          bitangents = new glm::vec3[positionBuffer.data.size()];
+        }
 
         const auto computeTangentBitangent = [&](uint32_t indexes[]) {
           const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
@@ -262,9 +267,6 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
         glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, GLsizei(positionBufferView.byteStride),
             (const GLvoid *)positionByteOffset);
-
-        delete[] tangents;
-        delete[] bitangents;
       }
 
       if (primitive.indices >= 0)
@@ -280,7 +282,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
   }
   glBindVertexArray(0);
 
-  std::cout << "done createVertexArrayObjects" << std::endl;
+  delete[] tangents;
+  delete[] bitangents;
 
   return vertexArrayObjects;
 }
@@ -322,8 +325,6 @@ std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Mode
     }
   }
   glBindTexture(GL_TEXTURE_2D, 0);
-
-  std::cout << "done createTextureObjects" << std::endl;
 
   return textureObjects;
 }
@@ -599,8 +600,6 @@ int ViewerApplication::run()
         glUniform1i(uNormalTexture, 4);
       }
     }
-
-    std::cout << "done bindMaterials" << std::endl;
   };
 
   // Lambda function to draw the scene
@@ -700,8 +699,6 @@ int ViewerApplication::run()
         drawNode(node, glm::mat4(1));
       }
     }
-
-    std::cout << "done drawScene" << std::endl;
   };
 
   if (!m_OutputPath.empty())
