@@ -91,9 +91,6 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
       const auto &primitive = mesh.primitives[idx];
       glBindVertexArray(vao);
 
-      // std::vector<glm::vec3> tangents;
-      // std::vector<glm::vec3> bitangents;
-
       std::string attrs[] = {"POSITION", "NORMAL", "TEXCOORD_0"};
 
       for (GLuint attrIdx = 0; attrIdx < 3; attrIdx++)
@@ -148,7 +145,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         glm::vec3 *bitangents = new glm::vec3[positionBuffer.data.size()];
 
         const auto computeTangentBitangent = [&](uint32_t indexes[]) {
-                    const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
+          const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
           const glm::vec3 &v1 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[1]]);
           const glm::vec3 &v2 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[2]]);
 
@@ -187,14 +184,6 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           bitangents[positionByteOffset + positionByteStride * indexes[0]] += bitangent;
           bitangents[positionByteOffset + positionByteStride * indexes[1]] += bitangent;
           bitangents[positionByteOffset + positionByteStride * indexes[2]] += bitangent;
-
-          // tangents.push_back(tangent);
-          // tangents.push_back(tangent);
-          // tangents.push_back(tangent);
-
-          // bitangents.push_back(bitangent);
-          // bitangents.push_back(bitangent);
-          // bitangents.push_back(bitangent);
         };
 
         if (primitive.indices >= 0)
@@ -271,6 +260,9 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
         glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, GLsizei(positionBufferView.byteStride),
             (const GLvoid *)positionByteOffset);
+
+        delete[] tangents;
+        delete[] bitangents;
 
         if (primitive.indices >= 0)
         {
