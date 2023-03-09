@@ -109,7 +109,7 @@ void main()
     color = mix(color, color * ao, uOcclusionStrength);
   }
 
-  if(uDisplayNormalMap == 1 && uApplyNormalMapping == 1 && uThereIsANormalMap == 1){
+  if(uDisplayNormalMap == 1){
     color = N;
   }
   fColor = LINEARtoSRGB(color);

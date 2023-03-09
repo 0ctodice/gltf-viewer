@@ -98,3 +98,43 @@ render_helmet() {
   dist/gltf-viewer viewer gltf-sample-models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf \
     --output output-images/helmet.png
 }
+
+render_suzanne() {
+  cmake_prepare
+  cmake_install
+  [ ! -d output-images ] && mkdir output-images
+  dist/gltf-viewer viewer gltf-sample-models/2.0/Suzanne/glTF/Suzanne.gltf \
+    --output output-images/Suzanne.png
+}
+
+render_boom_box() {
+  cmake_prepare
+  cmake_install
+  [ ! -d output-images ] && mkdir output-images
+  dist/gltf-viewer viewer gltf-sample-models/2.0/BoomBox/glTF/BoomBox.gltf \
+    --output output-images/BoomBox.png
+}
+
+render_scifi_helmet() {
+  cmake_prepare
+  cmake_install
+  [ ! -d output-images ] && mkdir output-images
+  dist/gltf-viewer viewer gltf-sample-models/2.0/SciFiHelmet/glTF/SciFiHelmet.gltf \
+    --output output-images/SciFiHelmet.png
+}
+
+render_lantern() {
+  cmake_prepare
+  cmake_install
+  [ ! -d output-images ] && mkdir output-images
+  dist/gltf-viewer viewer gltf-sample-models/2.0/Lantern/glTF/Lantern.gltf \
+    --output output-images/Lantern.png
+}
+
+render_toy_car() {
+  cmake_prepare
+  cmake_install
+  [ ! -d output-images ] && mkdir output-images
+  dist/gltf-viewer viewer gltf-sample-models/2.0/ToyCar/glTF/ToyCar.gltf \
+    --output output-images/ToyCar.png
+}
