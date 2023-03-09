@@ -76,6 +76,12 @@ view_lantern() {
   dist/gltf-viewer viewer gltf-sample-models/2.0/Lantern/glTF/Lantern.gltf
 }
 
+view_toy_car() {
+  cmake_prepare
+  cmake_install
+  dist/gltf-viewer viewer gltf-sample-models/2.0/ToyCar/glTF/ToyCar.gltf
+}
+
 render_sponza() {
   cmake_prepare
   cmake_install

@@ -74,6 +74,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
   glm::vec3 *tangents = nullptr;
   glm::vec3 *bitangents = nullptr;
+  int tangentCount = 0;
 
   for (size_t i = 0; i < model.meshes.size(); i++)
   {
@@ -151,6 +152,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           bitangents = new glm::vec3[positionBuffer.data.size()];
         }
 
+        tangentCount = 0;
+
         const auto computeTangentBitangent = [&](uint32_t indexes[]) {
           const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
           const glm::vec3 &v1 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[1]]);
@@ -191,6 +194,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           bitangents[positionByteOffset + positionByteStride * indexes[0]] = bitangent;
           bitangents[positionByteOffset + positionByteStride * indexes[1]] = bitangent;
           bitangents[positionByteOffset + positionByteStride * indexes[2]] = bitangent;
+
+          tangentCount += 3;
         };
 
         if (primitive.indices >= 0)
@@ -247,27 +252,25 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
             computeTangentBitangent(indexes);
           }
         }
-
-        GLuint tangentbuffer;
-        glGenBuffers(1, &tangentbuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
-        glBufferData(GL_ARRAY_BUFFER, positionBuffer.data.size() * sizeof(glm::vec3), &tangents[0], GL_STATIC_DRAW);
-
-        GLuint bitangentbuffer;
-        glGenBuffers(1, &bitangentbuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
-        glBufferData(GL_ARRAY_BUFFER, positionBuffer.data.size() * sizeof(glm::vec3), &bitangents[0], GL_STATIC_DRAW);
-
-        glEnableVertexAttribArray(VERTEX_ATTRIB_ATANGENT_IDX);
-        glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
-        glVertexAttribPointer(
-            VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, GLsizei(positionBufferView.byteStride), (const GLvoid *)positionByteOffset);
-
-        glEnableVertexAttribArray(VERTEX_ATTRIB_ABITANGENT_IDX);
-        glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
-        glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, GLsizei(positionBufferView.byteStride),
-            (const GLvoid *)positionByteOffset);
       }
+
+      GLuint tangentbuffer;
+      glGenBuffers(1, &tangentbuffer);
+      glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
+      glBufferData(GL_ARRAY_BUFFER, tangentCount * sizeof(glm::vec3), tangents, GL_STATIC_DRAW);
+
+      glEnableVertexAttribArray(VERTEX_ATTRIB_ATANGENT_IDX);
+      glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
+      glVertexAttribPointer(VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
+
+      GLuint bitangentbuffer;
+      glGenBuffers(1, &bitangentbuffer);
+      glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
+      glBufferData(GL_ARRAY_BUFFER, tangentCount * sizeof(glm::vec3), bitangents, GL_STATIC_DRAW);
+
+      glEnableVertexAttribArray(VERTEX_ATTRIB_ABITANGENT_IDX);
+      glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
+      glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
 
       if (primitive.indices >= 0)
       {
@@ -280,6 +283,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
       }
     }
   }
+
   glBindVertexArray(0);
 
   delete[] tangents;
