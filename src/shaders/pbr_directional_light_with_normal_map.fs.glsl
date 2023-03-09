@@ -23,6 +23,8 @@ uniform sampler2D uNormalTexture;
 uniform int uApplyOcclusion;
 uniform int uApplyNormalMapping;
 uniform int uThereIsANormalMap;
+uniform int uDisplayNormalMap;
+
 out vec3 fColor;
 
 const float GAMMA = 2.2;
@@ -107,5 +109,8 @@ void main()
     color = mix(color, color * ao, uOcclusionStrength);
   }
 
+  if(uDisplayNormalMap == 1 && uApplyNormalMapping == 1 && uThereIsANormalMap == 1){
+    color = N;
+  }
   fColor = LINEARtoSRGB(color);
 }

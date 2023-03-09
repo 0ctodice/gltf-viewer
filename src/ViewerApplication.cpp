@@ -91,8 +91,8 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
       const auto &primitive = mesh.primitives[idx];
       glBindVertexArray(vao);
 
-      std::vector<glm::vec3> tangents;
-      std::vector<glm::vec3> bitangents;
+      // std::vector<glm::vec3> tangents;
+      // std::vector<glm::vec3> bitangents;
 
       std::string attrs[] = {"POSITION", "NORMAL", "TEXCOORD_0"};
 
@@ -144,8 +144,11 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         const auto positionByteStride = positionBufferView.byteStride ? positionBufferView.byteStride : 3 * sizeof(float);
         const auto texCoordByteStride = texCoordBufferView.byteStride ? texCoordBufferView.byteStride : 2 * sizeof(float);
 
+        glm::vec3 *tangents = new glm::vec3[positionBuffer.data.size()];
+        glm::vec3 *bitangents = new glm::vec3[positionBuffer.data.size()];
+
         const auto computeTangentBitangent = [&](uint32_t indexes[]) {
-          const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
+                    const glm::vec3 &v0 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[0]]);
           const glm::vec3 &v1 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[1]]);
           const glm::vec3 &v2 = *((const glm::vec3 *)&positionBuffer.data[positionByteOffset + positionByteStride * indexes[2]]);
 
@@ -177,13 +180,21 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
           bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
 
-          tangents.push_back(tangent);
-          tangents.push_back(tangent);
-          tangents.push_back(tangent);
+          tangents[positionByteOffset + positionByteStride * indexes[0]] += tangent;
+          tangents[positionByteOffset + positionByteStride * indexes[1]] += tangent;
+          tangents[positionByteOffset + positionByteStride * indexes[2]] += tangent;
 
-          bitangents.push_back(bitangent);
-          bitangents.push_back(bitangent);
-          bitangents.push_back(bitangent);
+          bitangents[positionByteOffset + positionByteStride * indexes[0]] += bitangent;
+          bitangents[positionByteOffset + positionByteStride * indexes[1]] += bitangent;
+          bitangents[positionByteOffset + positionByteStride * indexes[2]] += bitangent;
+
+          // tangents.push_back(tangent);
+          // tangents.push_back(tangent);
+          // tangents.push_back(tangent);
+
+          // bitangents.push_back(bitangent);
+          // bitangents.push_back(bitangent);
+          // bitangents.push_back(bitangent);
         };
 
         if (primitive.indices >= 0)
@@ -244,20 +255,22 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         GLuint tangentbuffer;
         glGenBuffers(1, &tangentbuffer);
         glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
-        glBufferData(GL_ARRAY_BUFFER, tangents.size() * sizeof(glm::vec3), &tangents[0], GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, positionBuffer.data.size() * sizeof(glm::vec3), &tangents[0], GL_STATIC_DRAW);
 
         GLuint bitangentbuffer;
         glGenBuffers(1, &bitangentbuffer);
         glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
-        glBufferData(GL_ARRAY_BUFFER, bitangents.size() * sizeof(glm::vec3), &bitangents[0], GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, positionBuffer.data.size() * sizeof(glm::vec3), &bitangents[0], GL_STATIC_DRAW);
 
         glEnableVertexAttribArray(VERTEX_ATTRIB_ATANGENT_IDX);
         glBindBuffer(GL_ARRAY_BUFFER, tangentbuffer);
-        glVertexAttribPointer(VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
+        glVertexAttribPointer(
+            VERTEX_ATTRIB_ATANGENT_IDX, 3, GL_FLOAT, GL_FALSE, GLsizei(positionBufferView.byteStride), (const GLvoid *)positionByteOffset);
 
         glEnableVertexAttribArray(VERTEX_ATTRIB_ABITANGENT_IDX);
         glBindBuffer(GL_ARRAY_BUFFER, bitangentbuffer);
-        glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)0);
+        glVertexAttribPointer(VERTEX_ATTRIB_ABITANGENT_IDX, 3, GL_FLOAT, GL_FALSE, GLsizei(positionBufferView.byteStride),
+            (const GLvoid *)positionByteOffset);
 
         if (primitive.indices >= 0)
         {
@@ -341,6 +354,7 @@ int ViewerApplication::run()
   const auto uNormalTexture = glGetUniformLocation(glslProgram.glId(), "uNormalTexture");
   const auto uApplyNormalMapping = glGetUniformLocation(glslProgram.glId(), "uApplyNormalMapping");
   const auto uThereIsANormalMap = glGetUniformLocation(glslProgram.glId(), "uThereIsANormalMap");
+  const auto uDisplayNormalMap = glGetUniformLocation(glslProgram.glId(), "uDisplayNormalMap");
 
   tinygltf::Model model;
 
@@ -382,6 +396,7 @@ int ViewerApplication::run()
   bool applyOcclusion = true;
   bool applyNormalMapping = true;
   bool thereIsANormalMap = false;
+  bool displayNormalMap = false;
 
   auto textureObjects = createTextureObjects(model);
 
@@ -622,6 +637,11 @@ int ViewerApplication::run()
       glUniform1i(uThereIsANormalMap, thereIsANormalMap);
     }
 
+    if (uDisplayNormalMap >= 0)
+    {
+      glUniform1i(uDisplayNormalMap, displayNormalMap);
+    }
+
     // The recursive function that should draw a node
     // We use a std::function because a simple lambda cannot be recursive
     const std::function<void(int, const glm::mat4 &)> drawNode = [&](int nodeIdx, const glm::mat4 &parentMatrix) {
@@ -763,6 +783,7 @@ int ViewerApplication::run()
         ImGui::Checkbox("light from camera", &lightFromCamera);
         ImGui::Checkbox("Ambient occlusion", &applyOcclusion);
         ImGui::Checkbox("Normal Mapping", &applyNormalMapping);
+        ImGui::Checkbox("Display normals", &displayNormalMap);
       }
 
       ImGui::End();
