@@ -58,6 +58,8 @@ std::vector<GLuint> ViewerApplication::createBufferObjects(const tinygltf::Model
     glBufferStorage(GL_ARRAY_BUFFER, model.buffers[i].data.size(), model.buffers[i].data.data(), 0);
   }
   glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  std::cout << "Done createBufferObjects" << std::endl;
   return buffers;
 }
 
@@ -177,13 +179,13 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
           bitangent.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
           bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
 
-          tangents[positionByteOffset + positionByteStride * indexes[0]] += tangent;
-          tangents[positionByteOffset + positionByteStride * indexes[1]] += tangent;
-          tangents[positionByteOffset + positionByteStride * indexes[2]] += tangent;
+          tangents[positionByteOffset + positionByteStride * indexes[0]] = tangent;
+          tangents[positionByteOffset + positionByteStride * indexes[1]] = tangent;
+          tangents[positionByteOffset + positionByteStride * indexes[2]] = tangent;
 
-          bitangents[positionByteOffset + positionByteStride * indexes[0]] += bitangent;
-          bitangents[positionByteOffset + positionByteStride * indexes[1]] += bitangent;
-          bitangents[positionByteOffset + positionByteStride * indexes[2]] += bitangent;
+          bitangents[positionByteOffset + positionByteStride * indexes[0]] = bitangent;
+          bitangents[positionByteOffset + positionByteStride * indexes[1]] = bitangent;
+          bitangents[positionByteOffset + positionByteStride * indexes[2]] = bitangent;
         };
 
         if (primitive.indices >= 0)
@@ -236,7 +238,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
         {
           for (size_t j = 0; j < positionAccessor.count; j += 3)
           {
-            uint32_t indexes[3] = {j, j + 1, j + 2};
+            uint32_t indexes[3] = {(uint32_t)j, (uint32_t)j + 1, (uint32_t)j + 2};
             computeTangentBitangent(indexes);
           }
         }
@@ -263,20 +265,22 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
         delete[] tangents;
         delete[] bitangents;
+      }
 
-        if (primitive.indices >= 0)
-        {
-          const auto accessorIdx = primitive.indices;
-          const auto &accessor = model.accessors[accessorIdx];
-          const auto &bufferView = model.bufferViews[accessor.bufferView];
-          const auto bufferIdx = bufferView.buffer;
+      if (primitive.indices >= 0)
+      {
+        const auto accessorIdx = primitive.indices;
+        const auto &accessor = model.accessors[accessorIdx];
+        const auto &bufferView = model.bufferViews[accessor.bufferView];
+        const auto bufferIdx = bufferView.buffer;
 
-          glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferObjects[bufferIdx]);
-        }
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferObjects[bufferIdx]);
       }
     }
   }
   glBindVertexArray(0);
+
+  std::cout << "done createVertexArrayObjects" << std::endl;
 
   return vertexArrayObjects;
 }
@@ -318,6 +322,8 @@ std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Mode
     }
   }
   glBindTexture(GL_TEXTURE_2D, 0);
+
+  std::cout << "done createTextureObjects" << std::endl;
 
   return textureObjects;
 }
@@ -385,12 +391,12 @@ int ViewerApplication::run()
   glm::vec3 lightingDirection(1, 1, 1);
   glm::vec3 lightingIntensity(1, 1, 1);
   bool lightFromCamera = false;
-  bool applyOcclusion = true;
-  bool applyNormalMapping = true;
+  bool applyOcclusion = false;
+  bool applyNormalMapping = false;
   bool thereIsANormalMap = false;
   bool displayNormalMap = false;
 
-  auto textureObjects = createTextureObjects(model);
+  const auto textureObjects = createTextureObjects(model);
 
   GLuint whiteTexture = 0;
 
@@ -405,7 +411,7 @@ int ViewerApplication::run()
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
   glBindTexture(GL_TEXTURE_2D, 0);
 
-  auto modelBufferObjects = createBufferObjects(model);
+  const auto modelBufferObjects = createBufferObjects(model);
 
   std::vector<VaoRange> meshindexToVaoRange;
   const auto vertexArrayObjects = createVertexArrayObjects(model, modelBufferObjects, meshindexToVaoRange);
@@ -593,6 +599,8 @@ int ViewerApplication::run()
         glUniform1i(uNormalTexture, 4);
       }
     }
+
+    std::cout << "done bindMaterials" << std::endl;
   };
 
   // Lambda function to draw the scene
@@ -669,7 +677,7 @@ int ViewerApplication::run()
             const auto &accessor = model.accessors[primitive.indices];
             const auto &bufferView = model.bufferViews[accessor.bufferView];
             const auto byteOffset = accessor.byteOffset + bufferView.byteOffset;
-            glDrawElements(primitive.mode, accessor.count, accessor.componentType, (const GLvoid *)byteOffset);
+            glDrawElements(primitive.mode, (GLsizei)accessor.count, accessor.componentType, (const GLvoid *)byteOffset);
           } else
           {
             const auto accessorIdx = (*begin(primitive.attributes)).second;
@@ -692,6 +700,8 @@ int ViewerApplication::run()
         drawNode(node, glm::mat4(1));
       }
     }
+
+    std::cout << "done drawScene" << std::endl;
   };
 
   if (!m_OutputPath.empty())

@@ -58,6 +58,24 @@ view_suzanne() {
   dist/gltf-viewer viewer gltf-sample-models/2.0/Suzanne/glTF/Suzanne.gltf
 }
 
+view_boom_box() {
+  cmake_prepare
+  cmake_install
+  dist/gltf-viewer viewer gltf-sample-models/2.0/BoomBox/glTF/BoomBox.gltf
+}
+
+view_scifi_helmet() {
+  cmake_prepare
+  cmake_install
+  dist/gltf-viewer viewer gltf-sample-models/2.0/SciFiHelmet/glTF/SciFiHelmet.gltf
+}
+
+view_lantern() {
+  cmake_prepare
+  cmake_install
+  dist/gltf-viewer viewer gltf-sample-models/2.0/Lantern/glTF/Lantern.gltf
+}
+
 render_sponza() {
   cmake_prepare
   cmake_install
