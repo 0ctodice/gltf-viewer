@@ -167,7 +167,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(
 
           float factor = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 
-          float f = 1.0f / factor;
+          float f = factor == 0.0 ? 0.0f : 1.0f / factor;
 
           tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
           tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
